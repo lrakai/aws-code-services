@@ -12,8 +12,9 @@ describe('accumulator', function () {
 		it('add increases length by one', function () {
 			var $scope = {};
 			var controller = $controller('AccumulatorController', { $scope: $scope });
+            
             $scope.item = "newItem";
-			controller.add();
+			$scope.add();
 
 			expect($scope.accumulator.length).toBe(1);
 		});	
