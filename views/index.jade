@@ -3,6 +3,8 @@ extends layout
 block content
   .container(ng-app="accumulatorApp")
     h1= title
+    div#dev-notice= environment
+    div#server-notice= localAddress
     div.separator
     p Enter messages to accumulate
     div(ng-controller="AccumulatorController")
@@ -12,4 +14,4 @@ block content
         input.btn-primary(type="submit", value="Add", ng-disabled="!item.length")
       ul
         li(ng-repeat="item in accumulator track by $index")
-        | {{item}}
+          | {{item}}
