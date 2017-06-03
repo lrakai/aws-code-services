@@ -8,7 +8,8 @@ var lessMiddleware = require('less-middleware');
 
 var index = require('./routes/index');
 
-var environment = process.env.NODE_ENV ? process.env.NODE_ENV.trim() : 'development';
+var environment = process.env.NODE_ENV ? process.env.NODE_ENV : 'development';
+environment = environment.trim();
 console.log('NODE_ENV: ' + environment);
 
 var app = express();
