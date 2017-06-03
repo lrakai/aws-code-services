@@ -9,11 +9,18 @@ var lessMiddleware = require('less-middleware');
 var index = require('./routes/index');
 var users = require('./routes/users');
 
+var environment = process.env.NODE_ENV ? process.env.NODE_ENV.trim() : 'development';
+console.log('NODE_ENV: ' + environment);
+
 var app = express();
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
+if(environment === 'development') {
+  app.locals.pretty = true; 
+}
+
 
 // uncomment after placing your favicon in /public
 //app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));

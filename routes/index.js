@@ -3,7 +3,7 @@ var router = express.Router();
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
-  res.render('index', { title: 'Forgetful Queue' });
+  res.render('index', { title: 'Accumulator' });
 });
 
 module.exports = router;
