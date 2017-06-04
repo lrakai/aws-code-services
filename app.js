@@ -8,6 +8,8 @@ var lessMiddleware = require('less-middleware');
 
 var index = require('./routes/index');
 
+process.title = "ca-app";
+
 var environment = process.env.NODE_ENV ? process.env.NODE_ENV : 'development';
 environment = environment.trim();
 console.log('NODE_ENV: ' + environment);

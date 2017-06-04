@@ -5,6 +5,7 @@
   "scripts": {
     "build": "node ./node_modules/gulp/bin/gulp.js",
     "start": "node ./bin/www",
+    "stop": "pkill -SIGINT ca-app",
     "test": "karma start"
   },
   "dependencies": {
