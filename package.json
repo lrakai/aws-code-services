@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "build": "node ./node_modules/gulp/bin/gulp.js",
     "start": "node ./bin/www",
     "test": "karma start"
   },
@@ -11,6 +12,10 @@
     "cookie-parser": "~1.4.3",
     "debug": "~2.6.3",
     "express": "~4.15.2",
+    "gulp": "^3.9.1",
+    "gulp-concat": "^2.6.1",
+    "gulp-rename": "^1.2.2",
+    "gulp-uglify": "^3.0.0",
     "jade": "~1.11.0",
     "less-middleware": "~2.2.0",
     "morgan": "~1.8.1",

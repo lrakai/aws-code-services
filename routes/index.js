@@ -4,7 +4,8 @@ var os = require('os');
 var router = express.Router();
 var ifaces = os.networkInterfaces();
 var localAddress = '';
-var environment = process.env.NODE_ENV === 'production' ? '' : process.env.NODE_ENV + ' environment';
+var environment = process.env.NODE_ENV === 'production' ? 'production' : 'development';
+var environmentNotice = environment === 'production' ? '' : environment + ' environment';
 
 Object.keys(ifaces).forEach(function (ifname) {
   var alias = 0;
@@ -21,7 +22,12 @@ Object.keys(ifaces).forEach(function (ifname) {
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
-  res.render('index', { title: 'Accumulator', environment: environment,  localAddress: localAddress });
+  res.render('index', { 
+    title: 'Accumulator', 
+    environment: environment,
+    environmentNotice: environmentNotice,
+    localAddress: localAddress 
+  });
 });
 
 module.exports = router;
