@@ -1,21 +1,39 @@
 angular.module('accumulatorApp', ['ngCookies'])
-  .controller('AccumulatorController', ['$scope', '$cookies', function ($scope, $cookies) {
+    .controller('AccumulatorController', ['$scope', '$cookies', function ($scope, $cookies) {
 
-    $scope.accumulator = $cookies.getObject('accumulator') || [];
-    $scope.item = '';
+        function upgrade() {
+            var accumulator = [];
+            if ($scope.accumulator.length === 0 || typeof $scope.accumulator[0] === 'object') {
+                return;
+            }
 
-    $scope.add = function () {
-      $scope.accumulator.unshift({
-        message: $scope.item,
-        emphasize: false
-      });
-      $cookies.putObject('accumulator', $scope.accumulator);
-      $scope.item = '';
-    }
+            accumulator = $scope.accumulator.map(function (item) {
+                return {
+                    message: item,
+                    emphasize: false
+                };
+            })
 
-    $scope.toggleEmphasis = function(index){
-      $scope.accumulator[index].emphasize = !$scope.accumulator[index].emphasize;
-      $cookies.putObject('accumulator', $scope.accumulator);
-    }
+            $scope.accumulator = accumulator;
+            $cookies.putObject('accumulator', $scope.accumulator);
+        }
 
-  }]);
+        $scope.accumulator = $cookies.getObject('accumulator') || [];
+        upgrade();
+        $scope.item = '';
+
+        $scope.add = function () {
+            $scope.accumulator.unshift({
+                message: $scope.item,
+                emphasize: false
+            });
+            $cookies.putObject('accumulator', $scope.accumulator);
+            $scope.item = '';
+        }
+
+        $scope.toggleEmphasis = function (index) {
+            $scope.accumulator[index].emphasize = !$scope.accumulator[index].emphasize;
+            $cookies.putObject('accumulator', $scope.accumulator);
+        }
+
+    }]);
