@@ -14,7 +14,9 @@ block content
         input.btn-primary(type="submit", value="Add", ng-disabled="!item.length")
       ul
         li(ng-repeat="item in accumulator track by $index")
-          span(ng-class="item.emphasize ? 'emphasize' : ''")
-          | {{item.message}}
-          img(src="images/toggle-on.png" ng-show="item.emphasize" ng-click="toggleEmphasis($index)") 
-          img(src="images/toggle-off.png" ng-show="!item.emphasize" ng-click="toggleEmphasis($index)")
+          span(class="emphasize" ng-show="item.emphasize")
+            | {{item.message}}
+          span(ng-show="!item.emphasize")
+            | {{item.message}}
+          img(src="images/toggle-on.png" class="toggle" ng-show="item.emphasize" ng-click="toggleEmphasis($index)") 
+          img(src="images/toggle-off.png" class="toggle" ng-show="!item.emphasize" ng-click="toggleEmphasis($index)")
