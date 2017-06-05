@@ -10,14 +10,14 @@ permissions:
     group: ec2-user
 hooks:
   ApplicationStop:
-    - location: /home/ec2-user/ca-app/scripts/stop.sh
+    - location: scripts/stop.sh
       timeout: 10
       runas: ec2-user
   ApplicationStart:
-    - location: /home/ec2-user/ca-app/scripts/start.sh
+    - location: scripts/start.sh
       timeout: 20
       runas: ec2-user
   ValidateService:
-    - location: /home/ec2-user/ca-app/scripts/validate.sh
+    - location: scripts/validate.sh
       timeout: 10
       runas: ec2-user
