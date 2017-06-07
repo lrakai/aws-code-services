@@ -1,0 +1,1108 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Cloud Academy Continuous Deployment using AWS Code Services",
+    "Parameters": {
+        "Region": {
+            "Type": "String",
+            "Default": "us-west-2"
+        }
+    },
+    "Mappings": {
+        "AppConfig": {
+            "Metadata": {
+                "RepoName": "ca-app"
+            }
+        },
+        "Ec2InstanceConfig": {
+            "Metadata": {
+                "InstanceName": "dev-instance"
+            }
+        },
+        "SubnetConfig": {
+            "VPC": {
+                "CIDR": "10.0.0.0/20"
+            },
+            "DevSubnet": {
+                "CIDR": "10.0.0.0/24",
+                "AZ": "us-west-2a"
+            },
+            "BlueSubnet": {
+                "CIDR": "10.0.1.0/24",
+                "AZ": "us-west-2b"
+            },
+            "GreenSubnet": {
+                "CIDR": "10.0.2.0/24",
+                "AZ": "us-west-2c"
+            }
+        },
+        "UserConfig": {
+            "Login": {
+                "Name": "student",
+                "Pass": "password"
+            }
+        }
+    },
+    "Resources": {
+        "CodeBuildRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "codebuild.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "codebuild-policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "logs:CreateLogGroup",
+                                        "logs:CreateLogStream",
+                                        "logs:PutLogEvents",
+                                        "codecommit:GitPull",
+                                        "s3:GetObject",
+                                        "s3:GetObjectVersion",
+                                        "s3:PutObject"
+                                    ],
+                                    "Resource": [
+                                        "*"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "RoleName": "codebuild-ca-app-role"
+            }
+        },
+        "CodePipelineRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "codepipeline.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "codepipeline-policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Action": [
+                                        "codecommit:CancelUploadArchive",
+                                        "codecommit:GetBranch",
+                                        "codecommit:GetCommit",
+                                        "codecommit:GetUploadArchiveStatus",
+                                        "codecommit:UploadArchive"
+                                    ],
+                                    "Resource": "*",
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Action": [
+                                        "codedeploy:CreateDeployment",
+                                        "codedeploy:GetApplicationRevision",
+                                        "codedeploy:GetDeployment",
+                                        "codedeploy:GetDeploymentConfig",
+                                        "codedeploy:RegisterApplicationRevision"
+                                    ],
+                                    "Resource": "*",
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Action": [
+                                        "cloudwatch:*",
+                                        "s3:*",
+                                        "iam:PassRole"
+                                    ],
+                                    "Resource": "*",
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Action": [
+                                        "codebuild:BatchGetBuilds",
+                                        "codebuild:StartBuild"
+                                    ],
+                                    "Resource": "*",
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Effect": "Deny",
+                                    "Action": [
+                                        "ec2:ModifyInstanceAttribute",
+                                        "ec2:*Reserved*",
+                                        "ec2:*Spot*",
+                                        "dynamodb:*Reserved*",
+                                        "rds:*Reserved*",
+                                        "elasticache:*Reserved*",
+                                        "redshift:*Reserved*",
+                                        "aws-marketplace:*"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "RoleName": "codepipeline-ca-app-role"
+            }
+        },
+        "CodeDeployRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "codedeploy.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole"
+                ],
+                "RoleName": "codedeploy-ca-app-role"
+            }
+        },
+        "DeployEc2InstanceRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "ec2.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "deploy-instance-policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Action": [
+                                        "s3:Get*",
+                                        "s3:List*"
+                                    ],
+                                    "Effect": "Allow",
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "RoleName": "deploy-instance-role"
+            }
+        },
+        "DeployInstanceProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+                "Path": "/",
+                "Roles": [
+                    {
+                        "Ref": "DeployEc2InstanceRole"
+                    }
+                ]
+            }
+        },
+        "DevEc2InstanceRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "ec2.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "dev-instance-policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "codecommit:*"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:codecommit:us-west-2:",
+                                                    {
+                                                        "Ref": "AWS::AccountId"
+                                                    },
+                                                    ":",
+                                                    {
+                                                        "Fn::FindInMap": [
+                                                            "AppConfig",
+                                                            "Metadata",
+                                                            "RepoName"
+                                                        ]
+                                                    }
+                                                ]
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "RoleName": "dev-instance-role"
+            }
+        },
+        "DevInstanceProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+                "Path": "/",
+                "Roles": [
+                    {
+                        "Ref": "DevEc2InstanceRole"
+                    }
+                ]
+            }
+        },
+        "DevInstance": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+                "IamInstanceProfile": {
+                    "Ref": "DevInstanceProfile"
+                },
+                "ImageId": "ami-4836a428",
+                "InstanceType": "t2.micro",
+                "KeyName": {
+                    "Ref": "AWS::AccountId"
+                },
+                "SecurityGroupIds": [
+                    {
+                        "Ref": "DevSecurityGroup"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::FindInMap": [
+                                "Ec2InstanceConfig",
+                                "Metadata",
+                                "InstanceName"
+                            ]
+                        }
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": "Dev"
+                    }
+                ],
+                "SubnetId": {
+                    "Ref": "DevSubnet"
+                },
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "#!/bin/bash\n",
+                                "curl --silent --location https://rpm.nodesource.com/setup_6.x | bash -\n",
+                                "yum install -y git nodejs\n",
+                                "cd /tmp\n",
+                                "git clone https://github.com/lrakai/aws-code-services.git\n",
+                                "cd aws-code-services\n",
+                                "tar --exclude=commits -cf app.tar * .gitignore\n",
+                                "cp -R commits /home/ec2-user\n",
+                                "mkdir /home/ec2-user/app\n",
+                                "mv app.tar /home/ec2-user/app/\n",
+                                "cd /home/ec2-user/app\n",
+                                "tar -xf app.tar\n",
+                                "rm app.tar\n",
+                                "npm install\n",
+                                "npm run build\n",
+                                "chown -R ec2-user:ec2-user /home/ec2-user/\n"
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+        "DevVpc": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "CidrBlock": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "VPC",
+                        "CIDR"
+                    ]
+                },
+                "EnableDnsSupport": true,
+                "EnableDnsHostnames": true,
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Dev Vpc"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": "Dev"
+                    }
+                ]
+            }
+        },
+        "DevSubnet": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "DevVpc"
+                },
+                "MapPublicIpOnLaunch": true,
+                "AvailabilityZone": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "DevSubnet",
+                        "AZ"
+                    ]
+                },
+                "CidrBlock": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "DevSubnet",
+                        "CIDR"
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Dev Subnet"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": "Dev"
+                    }
+                ]
+            }
+        },
+        "DevInternetGatewayAttach": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "DevVpc"
+                },
+                "InternetGatewayId": {
+                    "Ref": "DevInternetGateway"
+                }
+            }
+        },
+        "DevPublicRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "DevVpc"
+                }
+            }
+        },
+        "DevPublicRoute": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "DevPublicRouteTable"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "DevInternetGateway"
+                }
+            }
+        },
+        "DevSubnetRouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "DevSubnet"
+                },
+                "RouteTableId": {
+                    "Ref": "DevPublicRouteTable"
+                }
+            }
+        },
+        "DevInternetGateway": {
+            "Type": "AWS::EC2::InternetGateway"
+        },
+        "DevSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Allow incoming http and ssh traffic",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "22",
+                        "ToPort": "22",
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "3000",
+                        "ToPort": "3000",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "DevVpc"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Dev Servers"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": "Dev"
+                    }
+                ]
+            }
+        },
+        "ProdVpc": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "CidrBlock": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "VPC",
+                        "CIDR"
+                    ]
+                },
+                "EnableDnsSupport": true,
+                "EnableDnsHostnames": true,
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Production Vpc"
+                    }
+                ]
+            }
+        },
+        "ProdInternetGatewayAttach": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "ProdVpc"
+                },
+                "InternetGatewayId": {
+                    "Ref": "ProdInternetGateway"
+                }
+            }
+        },
+        "ProdInternetGateway": {
+            "Type": "AWS::EC2::InternetGateway"
+        },
+        "ProdSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Allow incoming http traffic",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "8080",
+                        "ToPort": "8080",
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "ProdVpc"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Prod Servers"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": "Prod"
+                    }
+                ]
+            }
+        },
+        "BlueSubnet": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "ProdVpc"
+                },
+                "MapPublicIpOnLaunch": true,
+                "AvailabilityZone": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "BlueSubnet",
+                        "AZ"
+                    ]
+                },
+                "CidrBlock": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "BlueSubnet",
+                        "CIDR"
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Prod Subnet A"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": "Prod"
+                    }
+                ]
+            }
+        },
+        "BlueSubnetRouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "BlueSubnet"
+                },
+                "RouteTableId": {
+                    "Ref": "BluePublicRouteTable"
+                }
+            }
+        },
+        "BluePublicRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "ProdVpc"
+                }
+            }
+        },
+        "BluePublicRoute": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "BluePublicRouteTable"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "ProdInternetGateway"
+                }
+            }
+        },
+        "GreenSubnet": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "ProdVpc"
+                },
+                "MapPublicIpOnLaunch": true,
+                "AvailabilityZone": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "GreenSubnet",
+                        "AZ"
+                    ]
+                },
+                "CidrBlock": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "GreenSubnet",
+                        "CIDR"
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Prod Subnet B"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": "Prod"
+                    }
+                ]
+            }
+        },
+        "GreenSubnetRouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "GreenSubnet"
+                },
+                "RouteTableId": {
+                    "Ref": "GreenPublicRouteTable"
+                }
+            }
+        },
+        "GreenPublicRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "ProdVpc"
+                }
+            }
+        },
+        "GreenPublicRoute": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "GreenPublicRouteTable"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "ProdInternetGateway"
+                }
+            }
+        },
+        "DeploymentLaunchConfiguration": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Properties": {
+                "AssociatePublicIpAddress": true,
+                "IamInstanceProfile": {
+                    "Ref": "DeployInstanceProfile"
+                },
+                "ImageId": "ami-4836a428",
+                "InstanceType": "t2.micro",
+                "SecurityGroups": [
+                    {
+                        "Ref": "ProdSecurityGroup"
+                    }
+                ],
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "#!/bin/bash\n",
+                                "curl --silent --location https://rpm.nodesource.com/setup_6.x | bash -\n",
+                                "yum install -y ruby nodejs\n",
+                                "cd /home/ec2-user\n",
+                                "curl -O https://aws-codedeploy-us-west-2.s3.amazonaws.com/latest/install\n",
+                                "chmod +x ./install\n",
+                                "./install auto\n"
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+        "ProdAutoScalingGroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "LaunchConfigurationName": {
+                    "Ref": "DeploymentLaunchConfiguration"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "ca-app-asg",
+                        "PropagateAtLaunch": true
+                    }
+                ],
+                "HealthCheckGracePeriod": 180,
+                "HealthCheckType": "EC2",
+                "VPCZoneIdentifier": [
+                    {
+                        "Ref": "BlueSubnet"
+                    },
+                    {
+                        "Ref": "GreenSubnet"
+                    }
+                ],
+                "DesiredCapacity": "2",
+                "MinSize": "2",
+                "MaxSize": "2",
+                "LoadBalancerNames": [
+                    {
+                        "Ref": "ProdLoadBalancer"
+                    }
+                ]
+            }
+        },
+        "ProdLoadBalancer": {
+            "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+            "DependsOn": "ProdInternetGatewayAttach",
+            "Properties": {
+                "Subnets": [
+                    {
+                        "Ref": "BlueSubnet"
+                    },
+                    {
+                        "Ref": "GreenSubnet"
+                    }
+                ],
+                "Listeners": [
+                    {
+                        "LoadBalancerPort": "80",
+                        "InstancePort": "8080",
+                        "Protocol": "HTTP"
+                    }
+                ],
+                "SecurityGroups": [
+                    {
+                        "Ref": "ProdSecurityGroup"
+                    }
+                ],
+                "HealthCheck": {
+                    "HealthyThreshold": "5",
+                    "Interval": "20",
+                    "Target": "HTTP:8080/",
+                    "Timeout": "5",
+                    "UnhealthyThreshold": "2"
+                },
+                "ConnectionDrainingPolicy": {
+                    "Enabled": false
+                },
+                "CrossZone": true,
+                "LoadBalancerName": "ca-app-lb"
+            }
+        },
+        "CodeBuildArtifacts": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {}
+        },
+        "Group": {
+            "Type": "AWS::IAM::Group",
+            "Properties": {
+                "GroupName": "Students",
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "students-policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Action": [
+                                        "ec2:Describe*"
+                                    ],
+                                    "Resource": "*",
+                                    "Effect": "Allow",
+                                    "Condition": {
+                                        "StringEquals": {
+                                            "ec2:Region": "us-west-2"
+                                        }
+                                    }
+                                },
+                                {
+                                    "Action": [
+                                        "elasticloadbalancing:Describe*",
+                                        "autoscaling:DescribeAutoScalingGroups",
+                                        "health:DescribeEventAggregates",
+                                        "codecommit:ListRepositories",
+                                        "codebuild:ListProjects",
+                                        "codebuild:ListBuilds",
+                                        "codebuild:ListConnectedOAuthAccounts",
+                                        "codebuild:ListCuratedEnvironmentImages",
+                                        "ecr:DescribeRepositories",
+                                        "codedeploy:ListApplications",
+                                        "codedeploy:ListDeploymentGroups",
+                                        "iam:ListRoles"
+                                    ],
+                                    "Resource": [
+                                        "*"
+                                    ],
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "codecommit:*"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:codecommit:us-west-2:",
+                                                    {
+                                                        "Ref": "AWS::AccountId"
+                                                    },
+                                                    ":*"
+                                                ]
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "codebuild:*"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:codebuild:us-west-2:",
+                                                    {
+                                                        "Ref": "AWS::AccountId"
+                                                    },
+                                                    ":project/*"
+                                                ]
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Action": [
+                                        "logs:GetLogEvents"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:logs:us-west-2:",
+                                                    {
+                                                        "Ref": "AWS::AccountId"
+                                                    },
+                                                    ":log-group:/aws/codebuild/*:log-stream:*"
+                                                ]
+                                            ]
+                                        }
+                                    ],
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "codedeploy:*"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:codedeploy:us-west-2:",
+                                                    {
+                                                        "Ref": "AWS::AccountId"
+                                                    },
+                                                    ":*"
+                                                ]
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Action": [
+                                        "codepipeline:*"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:codepipeline:us-west-2:",
+                                                    {
+                                                        "Ref": "AWS::AccountId"
+                                                    },
+                                                    ":*"
+                                                ]
+                                            ]
+                                        }
+                                    ],
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Action": [
+                                        "iam:PassRole"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:iam::",
+                                                    {
+                                                        "Ref": "AWS::AccountId"
+                                                    },
+                                                    ":role/codebuild-ca-app-role"
+                                                ]
+                                            ]
+                                        },
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:iam::",
+                                                    {
+                                                        "Ref": "AWS::AccountId"
+                                                    },
+                                                    ":role/codedeploy-ca-app-role"
+                                                ]
+                                            ]
+                                        },
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:iam::",
+                                                    {
+                                                        "Ref": "AWS::AccountId"
+                                                    },
+                                                    ":role/codepipeline-ca-app-role"
+                                                ]
+                                            ]
+                                        }
+                                    ],
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Action": [
+                                        "iam:ListUsers"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Join": [
+                                            "",
+                                            [
+                                                "arn:aws:iam::",
+                                                {
+                                                    "Ref": "AWS::AccountId"
+                                                },
+                                                ":user/"
+                                            ]
+                                        ]
+                                    },
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Action": [
+                                        "iam:ListUserPolicies",
+                                        "iam:ListAttachedUserPolicies",
+                                        "iam:ListSSHPublicKeys",
+                                        "iam:ListAccessKeys",
+                                        "iam:ListServiceSpecificCredentials",
+                                        "iam:CreateServiceSpecificCredential"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Join": [
+                                            "",
+                                            [
+                                                "arn:aws:iam::",
+                                                {
+                                                    "Ref": "AWS::AccountId"
+                                                },
+                                                ":user/${aws:username}"
+                                            ]
+                                        ]
+                                    },
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Action": [
+                                        "s3:GetBucketPolicy",
+                                        "s3:GetObject",
+                                        "s3:ListAllMyBuckets",
+                                        "s3:ListBucket",
+                                        "s3:CreateBucket",
+                                        "s3:PutBucketPolicy"
+                                    ],
+                                    "Resource": [
+                                        "arn:aws:s3:::*"
+                                    ],
+                                    "Effect": "Allow"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "User": {
+            "Type": "AWS::IAM::User",
+            "Properties": {
+                "LoginProfile": {
+                    "Password": {
+                        "Fn::FindInMap": [
+                            "UserConfig",
+                            "Login",
+                            "Pass"
+                        ]
+                    }
+                },
+                "Path": "/",
+                "Groups": [
+                    "Students"
+                ],
+                "UserName": {
+                    "Fn::FindInMap": [
+                        "UserConfig",
+                        "Login",
+                        "Name"
+                    ]
+                }
+            }
+        }
+    }
+}
