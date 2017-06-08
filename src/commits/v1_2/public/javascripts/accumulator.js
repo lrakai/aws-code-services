@@ -3,37 +3,34 @@ angular.module('accumulatorApp', ['ngCookies'])
 
         function upgrade() {
             var accumulator = [];
-            if ($scope.accumulator.length === 0 || typeof $scope.accumulator[0] === 'object') {
+            var lengthDifference = $scope.accumulator.length - $scope.emphasis.length;
+            if (lengthDifference === 0) {
                 return;
             }
 
-            accumulator = $scope.accumulator.map(function (item) {
-                return {
-                    message: item,
-                    emphasize: false
-                };
-            })
+            for(var i = 0; i < lengthDifference; i++) {
+                $scope.emphasis.unshift(false);
+            }
 
-            $scope.accumulator = accumulator;
-            $cookies.putObject('accumulator', $scope.accumulator);
+            $cookies.putObject('emphasis', $scope.emphasis);
         }
 
         $scope.accumulator = $cookies.getObject('accumulator') || [];
+        $scope.emphasis = $cookies.getObject('emphasis') || [];
         upgrade();
         $scope.item = '';
 
         $scope.add = function () {
-            $scope.accumulator.unshift({
-                message: $scope.item,
-                emphasize: false
-            });
+            $scope.accumulator.unshift($scope.item);
+            $scope.emphasis.unshift(false);
             $cookies.putObject('accumulator', $scope.accumulator);
+            $cookies.putObject('emphasis', $scope.accumulator);
             $scope.item = '';
         }
 
         $scope.toggleEmphasis = function (index) {
-            $scope.accumulator[index].emphasize = !$scope.accumulator[index].emphasize;
-            $cookies.putObject('accumulator', $scope.accumulator);
+            $scope.emphasis[index] = !$scope.emphasis[index];
+            $cookies.putObject('emphasis', $scope.emphasis);
         }
 
     }]);
