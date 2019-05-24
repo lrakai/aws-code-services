@@ -727,6 +727,9 @@
         "DeploymentLaunchConfiguration": {
             "Type": "AWS::AutoScaling::LaunchConfiguration",
             "Properties": {
+                "KeyName": {
+                    "Ref": "AWS::AccountId"
+                },
                 "AssociatePublicIpAddress": true,
                 "IamInstanceProfile": {
                     "Ref": "DeployInstanceProfile"
@@ -862,12 +865,16 @@
                                         "codecommit:ListRepositories",
                                         "codebuild:ListProjects",
                                         "codebuild:ListBuilds",
+                                        "events:Describe*",
                                         "codebuild:ListConnectedOAuthAccounts",
                                         "codebuild:ListCuratedEnvironmentImages",
                                         "ecr:DescribeRepositories",
                                         "codedeploy:ListApplications",
                                         "codedeploy:ListDeploymentGroups",
-                                        "iam:ListRoles"
+                                        "SNS:ListTopics",
+                                        "iam:ListRoles",
+                                        "cloudwatch:DescribeAlarms",
+                                        "events:ListRules"
                                     ],
                                     "Resource": [
                                         "*"
